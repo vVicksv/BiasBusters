@@ -1,9 +1,6 @@
 import os 
 import telebot
-#from dotenv import load_dotenv
-#load_dotenv()
-#from reddit_crawler import get_data
-#from sentiment_analyzer import get_sentiments
+
 
 #Setting up of BOT
 bot = telebot.TeleBot('5891415447:AAHZ_7D6qQpKNovPLbxhi-F6vmLZ75mlrmA')
