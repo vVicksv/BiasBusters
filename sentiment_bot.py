@@ -50,9 +50,10 @@ def run_sentiment_bot():
     def help(message):
         bot.send_message(
             message.chat.id, "Try out Commands like /evaluate! If not you can contact @Viacks or @boonlong for any outstanding issues & Suggestions!")
-
+        
+    #Invalid Command Handling
     @bot.message_handler(func=lambda message: True)
     def echo_all(message):
-        pass
+	    bot.send_message(message.chat.id, 'Invalid Command, try /start!')
 
     bot.infinity_polling() 
