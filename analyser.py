@@ -1,9 +1,11 @@
 from typing import Text
 from textblob import TextBlob
 import re
+import random
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
+#get_sentiments Helper Functions
 def clean_text(text):
     return ' '.join(re.sub("(@[A-Za-z0-9]+)|([^0-9A-Za-z \t]) |(\w+:\/\/\S+)", " ", text).split())
 
@@ -26,11 +28,15 @@ def make_bar(y_axis, module_name):
     fig.supxlabel("Sentiment Type")
     fig.savefig("bar.png", bbox_inches='tight')
 
+#Sentiment Analysis Function
 def get_sentiments(dataList, provider, module_name):
 
     positives = 0
     negatives = 0
     neutral = 0
+    positivesrev = []
+    negativesrev = []
+    neutralrev = []
     total = len(dataList)
 
     print('sentiment calculation began..')
@@ -42,13 +48,13 @@ def get_sentiments(dataList, provider, module_name):
 
         if polarity > 0:
             positives += 1
+            positivesrev.append(content)
         elif polarity == 0:
             neutral +=1
+            neutralrev.append(content)
         else:
             negatives += 1
-
-    report = {'positives': positives, 'negatives': negatives, 'neutral': neutral, 'total': total,
-            'overall': maximum(positives, negatives, neutral), 'source': provider}
+            negativesrev.append(content)
 
     text_report= '{0} posts were analyzed... \n\n{1} were classified as being Positive \U0001F601 \n{2} were classified as Negative \U0001F614 \n{3} were classified as Neutral \U0001F610 \n\nOverall Sentiment: {4}\n\nData Source: {5}'.format(total, positives, negatives, neutral,
     maximum(positives, negatives, neutral), provider)
@@ -57,7 +63,22 @@ def get_sentiments(dataList, provider, module_name):
     result = [positives, neutral, negatives]
     make_bar(result, module_name)
 
+    print(random.choice(positivesrev))
     print('generating report')
 
-    return text_report
-            
+    thisdict = {"text": text_report,"posrev": positivesrev, "neurev": neutralrev, "negrev": negativesrev}
+    print(thisdict["text"])
+    return thisdict
+
+#Getter Functions
+def get_msg(thisdict):
+    return thisdict["text"]
+
+def get_good(thisdict):
+    return random.choice(thisdict["posrev"])
+
+def get_neu(thisdict):
+    return random.choice(thisdict["neurev"])
+
+def get_neg(thisdict):
+    return random.choice(thisdict["negrev"])
