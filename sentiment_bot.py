@@ -18,31 +18,119 @@ def run_sentiment_bot():
     @bot.message_handler(commands=['start'])
     async def start(message):
         await bot.send_message(message.chat.id, "How's it going, {name}! \U0001F60A \n\nNice to meet you! I am your very own NUSMOD-erator, here to give you the best insights to the module you're curious about! \U0001F914 \U0001F914 \n\nTo start, simply /evaluate <Module Code> and we'll get started! \U0001FAE1 \n\nWant to know how /evaluate works? /info for an introduction to our process!".format(name=message.from_user.first_name))
-    
+
     # Evaluate Command
     @bot.message_handler(commands=['evaluate'])
-    #@bot.message_handler(func=module_request)
     async def evaluate(message):
         request = message.text.split()
         if len(request) == 2:
+            fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
             module = message.text.split(" ")[1]
-            try:
-                await bot.send_message(
-                    message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
-                reviews = crawl(module)
-                if len(reviews) == 0:
-                    await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
-                    return
-                else:
-                    await bot.send_message(message.chat.id, "Generating sentiments now...")
-                    text_report = get_sentiments(reviews, "Reddit", module)
-                    await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
-                    await bot.send_message(message.chat.id, text_report)
-            except Exception:
-                await bot.send_message(message.chat.id,
-                            "There has been an error. Kindly try again later!")
+            if bool(re.search(fil, module)):
+                try:
+                    await bot.send_message(
+                        message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
+                    reviews = crawl(module)
+                    if len(reviews) == 0:
+                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                        return
+                    else:
+                        await bot.send_message(message.chat.id, "Generating sentiments now...")
+                        thisdict = get_sentiments(reviews, "Reddit", module)
+                        final_message = get_msg(thisdict)
+                        await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
+                        await bot.send_message(message.chat.id, final_message)
+                except Exception:
+                    await bot.send_message(message.chat.id,
+                                "There has been an error. Kindly try again later!")
+            else:
+                await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
             await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /evaluate!")
+
+    #RandReview Positive
+    @bot.message_handler(commands=['PositiveReview'])
+    async def good(message):
+        request = message.text.split()
+        if len(request) == 2:
+            fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
+            module = message.text.split(" ")[1]
+            if bool(re.search(fil, module)):
+                try:
+                    await bot.send_message(
+                        message.chat.id, f"Please wait, we are trying to find a random positive review on {module}...")
+                    reviews = crawl(module)
+                    if len(reviews) == 0:
+                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                        return
+                    else:
+                        await bot.send_message(message.chat.id, "Generating positive review now...")
+                        thisdict = get_sentiments(reviews, "Reddit", module)
+                        final_message = get_good(thisdict)
+                        await bot.send_message(message.chat.id, final_message)
+                except Exception:
+                    await bot.send_message(message.chat.id,
+                                "There has been an error. Kindly try again later!")
+            else:
+                await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
+        else:
+            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
+
+    #RandReview Neutral
+    @bot.message_handler(commands=['NeutralReview'])
+    async def neu(message):
+        request = message.text.split()
+        if len(request) == 2:
+            fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
+            module = message.text.split(" ")[1]
+            if bool(re.search(fil, module)):
+                try:
+                    await bot.send_message(
+                        message.chat.id, f"Please wait, we are trying to find a random neutral review on {module}...")
+                    reviews = crawl(module)
+                    if len(reviews) == 0:
+                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                        return
+                    else:
+                        await bot.send_message(message.chat.id, "Generating neutral review now...")
+                        thisdict = get_sentiments(reviews, "Reddit", module)
+                        final_message = get_neu(thisdict)
+                        await bot.send_message(message.chat.id, final_message)
+                except Exception:
+                    await bot.send_message(message.chat.id,
+                                "There has been an error. Kindly try again later!")
+            else:
+                await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
+        else:
+            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /NeutralReview!")
+
+    #RandReview Negative
+    @bot.message_handler(commands=['NegativeReview'])
+    async def bad(message):
+        request = message.text.split()
+        if len(request) == 2:
+            fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
+            module = message.text.split(" ")[1]
+            if bool(re.search(fil, module)):
+                try:
+                    await bot.send_message(
+                        message.chat.id, f"Please wait, we are trying to find a random negative review on {module}...")
+                    reviews = crawl(module)
+                    if len(reviews) == 0:
+                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                        return
+                    else:
+                        await bot.send_message(message.chat.id, "Generating review now...")
+                        thisdict = get_sentiments(reviews, "Reddit", module)
+                        final_message = get_good(thisdict)
+                        await bot.send_message(message.chat.id, final_message)
+                except Exception:
+                    await bot.send_message(message.chat.id,
+                                "There has been an error. Kindly try again later!")
+            else:
+                await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
+        else:
+            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /NegativeReview!")
 
     # Info Command
     @bot.message_handler(commands=['info'])
@@ -70,11 +158,11 @@ def run_sentiment_bot():
     @bot.message_handler(commands=['troubleshoot'])
     async def message_handler(message):
         await bot.send_message(message.chat.id, "Require troubleshooting? Select one of the issues you're facing below!", reply_markup=gen_markup())
-	    
+
     #Invalid Command Handling
     @bot.message_handler(func=lambda message: True)
     async def echo_all(message):
 	    await bot.send_message(message.chat.id, 'Invalid Command, try /start!')
-	    
+
     import asyncio
     asyncio.run(bot.polling())
