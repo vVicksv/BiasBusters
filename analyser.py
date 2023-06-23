@@ -9,24 +9,25 @@ def clean_text(text):
 
 def maximum(pos, neg, neu):
     if pos >= neg and pos >= neu:
-        return 'POSITIVE'
-    elif neg >= pos and neg >= neu: 
-        return 'NEGATIVE'
+        return 'Positive \U0001F601'
+    elif neg >= pos and neg >= neu:
+        return 'Negative \U0001F614'
     else:
-        return 'NEUTRAL'
+        return 'Neutral \U0001F610'
 
 def make_bar(y_axis, module_name):
-    x_axis = ["positive", "neutral", "negative"]
+    x_axis = ["Positive", "Neutral", "Negative"]
     fig = Figure()
     ax = fig.subplots()
-    ax.bar(x_axis, y_axis)
-    fig.suptitle(f"Sentiments Analysis of {module_name}")
-    fig.supylabel("Number of sentiments")
-    fig.supxlabel("Sentiments")
+    ax.bar(x_axis, y_axis, color=['green', 'grey', 'red'])
+    ax.bar_label(ax.containers[0], fontweight = 'bold')
+    fig.suptitle(f"Sentiments Analysis of {module_name}", y=0.93, fontweight = "bold")
+    fig.supylabel("Number of Sentiments")
+    fig.supxlabel("Sentiment Type")
     fig.savefig("bar.png", bbox_inches='tight')
 
 def get_sentiments(dataList, provider, module_name):
-  
+
     positives = 0
     negatives = 0
     neutral = 0
@@ -36,26 +37,27 @@ def get_sentiments(dataList, provider, module_name):
 
     for content in dataList:
         result = TextBlob(clean_text(content))
-        
+
         polarity = result.sentiment.polarity
 
-        if polarity > 0: 
+        if polarity > 0:
             positives += 1
         elif polarity == 0:
             neutral +=1
-        else: 
+        else:
             negatives += 1
 
-    report = {'positives': positives, 'negatives': negatives, 'neutral': neutral, 'total': total, 
+    report = {'positives': positives, 'negatives': negatives, 'neutral': neutral, 'total': total,
             'overall': maximum(positives, negatives, neutral), 'source': provider}
-    
-    text_report= '{0} posts were analyzed:\n{1} were classified as being positive\n{2} were classified as negative\n{3} were classified as neutral\nOveral Sentiment: {4}\n\nData Source: {5}'.format(total, positives, negatives, neutral, 
+
+    text_report= '{0} posts were analyzed... \n\n{1} were classified as being Positive \U0001F601 \n{2} were classified as Negative \U0001F614 \n{3} were classified as Neutral \U0001F610 \n\nOverall Sentiment: {4}\n\nData Source: {5}'.format(total, positives, negatives, neutral,
     maximum(positives, negatives, neutral), provider)
+
 
     result = [positives, neutral, negatives]
     make_bar(result, module_name)
 
     print('generating report')
-    
+
     return text_report
             
