@@ -2,6 +2,7 @@ import os
 import praw
 from praw.models import MoreComments
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -18,10 +19,15 @@ def crawl(module):
         for top_level_comment in submission.comments:
             if isinstance(top_level_comment, MoreComments):
                 continue
+            # do not scrape any comments with links (likely to be a generated message)
+            elif re.search('(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)', top_level_comment.body):
+                continue
+            # ignore deleted comments
+            elif top_level_comment.body == "[deleted]":
+                continue
             result.append(top_level_comment.body)
 
     print('crawling ended: {} posts crawled '.format(len(result)))
     return result
 
 
-## source orbital_venv/bin/activate 

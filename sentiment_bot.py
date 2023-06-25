@@ -1,10 +1,16 @@
 import os
 from dotenv import load_dotenv
 from crawler import crawl
-from analyser import get_sentiments
+from analyser import get_sentiments, retrieve_sentiments, generate_result, get_good, get_neg, get_msg
 from telebot.async_telebot import AsyncTeleBot
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import asyncio
+import re
+from crawler import crawl
+from analyser import mod_exist
+from create_mongodb import get_database
+
 
 def run_sentiment_bot():
 
@@ -12,7 +18,7 @@ def run_sentiment_bot():
 
     # Setting up of BOT
     TELE_TOKEN = os.environ.get('TELE_TOKEN')
-    bot = telebot.TeleBot(TELE_TOKEN)
+    bot = AsyncTeleBot(TELE_TOKEN)
 
     # Start Command
     @bot.message_handler(commands=['start'])
@@ -22,24 +28,30 @@ def run_sentiment_bot():
     # Evaluate Command
     @bot.message_handler(commands=['evaluate'])
     async def evaluate(message):
-        request = message.text.split()
+        request = message.text.lower().split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1]
+            module = message.text.split(" ")[1].lower()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
-                    reviews = crawl(module)
-                    if len(reviews) == 0:
-                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
-                        return
-                    else:
-                        await bot.send_message(message.chat.id, "Generating sentiments now...")
-                        thisdict = get_sentiments(reviews, "Reddit", module)
-                        final_message = get_msg(thisdict)
-                        await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
-                        await bot.send_message(message.chat.id, final_message)
+                    
+                    if mod_exist(get_database(), module):
+                        await bot.send_message(message.chat.id, f"Please wait while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    else: 
+                        reviews = crawl(module)
+                        if len(reviews) == 0:
+                            await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                            return
+                        else:
+                            positivesrev, negativesrev = get_sentiments(reviews, module)
+                    await bot.send_message(message.chat.id, "Generating sentiments now...")
+                    thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
+                    final_message = get_msg(thisdict)
+                    await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
+                    await bot.send_message(message.chat.id, final_message)
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
@@ -54,20 +66,26 @@ def run_sentiment_bot():
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1]
+            module = message.text.split(" ")[1].lower()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
-                        message.chat.id, f"Please wait, we are trying to find a random positive review on {module}...")
-                    reviews = crawl(module)
-                    if len(reviews) == 0:
-                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
-                        return
-                    else:
-                        await bot.send_message(message.chat.id, "Generating positive review now...")
-                        thisdict = get_sentiments(reviews, "Reddit", module)
-                        final_message = get_good(thisdict)
-                        await bot.send_message(message.chat.id, final_message)
+                        message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
+                    
+                    if mod_exist(get_database(), module):
+                        await bot.send_message(message.chat.id, f"Please wait while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    else: 
+                        reviews = crawl(module)
+                        if len(reviews) == 0:
+                            await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                            return
+                        else:
+                            positivesrev, negativesrev = get_sentiments(reviews, module)
+                    await bot.send_message(message.chat.id, "Generating review now...")
+                    thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
+                    final_message = get_good(thisdict)
+                    await bot.send_message(message.chat.id, final_message)
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
@@ -76,54 +94,32 @@ def run_sentiment_bot():
         else:
             await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
 
-    #RandReview Neutral
-    @bot.message_handler(commands=['NeutralReview'])
-    async def neu(message):
-        request = message.text.split()
-        if len(request) == 2:
-            fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1]
-            if bool(re.search(fil, module)):
-                try:
-                    await bot.send_message(
-                        message.chat.id, f"Please wait, we are trying to find a random neutral review on {module}...")
-                    reviews = crawl(module)
-                    if len(reviews) == 0:
-                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
-                        return
-                    else:
-                        await bot.send_message(message.chat.id, "Generating neutral review now...")
-                        thisdict = get_sentiments(reviews, "Reddit", module)
-                        final_message = get_neu(thisdict)
-                        await bot.send_message(message.chat.id, final_message)
-                except Exception:
-                    await bot.send_message(message.chat.id,
-                                "There has been an error. Kindly try again later!")
-            else:
-                await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
-        else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /NeutralReview!")
-
     #RandReview Negative
     @bot.message_handler(commands=['NegativeReview'])
     async def bad(message):
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1]
+            module = message.text.split(" ")[1].lower()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
-                        message.chat.id, f"Please wait, we are trying to find a random negative review on {module}...")
-                    reviews = crawl(module)
-                    if len(reviews) == 0:
-                        await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
-                        return
-                    else:
-                        await bot.send_message(message.chat.id, "Generating review now...")
-                        thisdict = get_sentiments(reviews, "Reddit", module)
-                        final_message = get_good(thisdict)
-                        await bot.send_message(message.chat.id, final_message)
+                        message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
+                    
+                    if mod_exist(get_database(), module):
+                        await bot.send_message(message.chat.id, f"Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    else: 
+                        reviews = crawl(module)
+                        if len(reviews) == 0:
+                            await bot.send_message(message.chat.id, f"Sorry, we are unable to find any reviews on {module}. Please try again later!")
+                            return
+                        else:
+                            positivesrev, negativesrev = get_sentiments(reviews, module)
+                    await bot.send_message(message.chat.id, "Generating reviews now...")
+                    thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
+                    final_message = get_neg(thisdict)
+                    await bot.send_message(message.chat.id, final_message)
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
@@ -135,7 +131,7 @@ def run_sentiment_bot():
     # Info Command
     @bot.message_handler(commands=['info'])
     async def info(message):
-        await bot.send_message(message.chat.id, "So, how does /evaluate exactly work? \U0001F680 \n\n/evaluates goes through 3 main steps \U0001F4A5 - PRAW-ling through the subreddit of NUS for relevant comments, grouping said comments to Positive, Negative & Neutral sentiments, and subsequently outputting a bar graph followed by a brief message of the sentiments. \n\nPRAW \U0001F47E - Upon initialising /evaluate for a certain module code (i.e CS1010S), our PRAW-ler gets to work and scrapes comments that has the word ‘’CS1010S’’ mentioned anywhere in the NUS subreddit. It then gets compiled into a list to be sent for sentiment analysis. \n\nSentiment Analysis \U0001F9E0 - As of now, we are using Textblob, a pre-trained ML model, which helps to calculate a sentence’s polarity through a scoring system. We are thus able to use the scoring system to group them into what the model deems to be Positive, Neutral & Negative comments. The counts of each sentiment are then calculated and pushed for final output. \n\nFinal Output \U0001F4C8 - Our final sentiment output for the user provides a bar graph and a message. The counts of each sentiment is compiled and converted into a bar graph via MatPlotLib for the user to identify the difference in count for further analysis. For the message, it provides the user the number of posts analysed, along with the breakdown count of each sentiment and of course, the overall sentiment. We believe that having both graphs and messages would complement each other.")
+        await bot.send_message(message.chat.id, "So, how does /evaluate exactly work? \U0001F680 \n\n/evaluates goes through 3 main steps \U0001F4A5 - PRAW-ling through the subreddit of NUS for relevant comments, grouping said comments to Positive & Negative sentiments, and subsequently outputting a bar graph followed by a brief message of the sentiments. \n\nPRAW \U0001F47E - Upon initialising /evaluate for a certain module code (i.e CS1010S), our PRAW-ler gets to work and scrapes comments that has the word ‘’CS1010S’’ mentioned anywhere in the NUS subreddit. It then gets compiled into a list to be sent for sentiment analysis. \n\nSentiment Analysis \U0001F9E0 - As of now, we have trained a few models using classification and deep learning algorithm. We have deployed the best-perfomed model to predict the sentiment of each review. The counts of each sentiment are then calculated and pushed for final output. \n\nFinal Output \U0001F4C8 - Our final sentiment output for the user provides a bar graph and a message. The counts of each sentiment is compiled and converted into a bar graph via MatPlotLib for the user to identify the difference in count for further analysis. For the message, it provides the user the number of posts analysed, along with the breakdown count of each sentiment and of course, the overall sentiment. We believe that having both graphs and messages would complement each other.")
 
     #QnA InlineKeyboard (/troubleshoot)
     def gen_markup():
@@ -163,6 +159,7 @@ def run_sentiment_bot():
     @bot.message_handler(func=lambda message: True)
     async def echo_all(message):
 	    await bot.send_message(message.chat.id, 'Invalid Command, try /start!')
-
-    import asyncio
+    
     asyncio.run(bot.polling())
+
+# source orbitalgit_env/bin/activate
