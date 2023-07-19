@@ -2,6 +2,7 @@ from typing import Text
 import re
 import random
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 import nltk
 import ssl
@@ -9,6 +10,8 @@ import pickle
 import sklearn
 from create_mongodb import get_database
 from crawler import crawl
+from io import BytesIO
+from wordcloud import WordCloud
 
 try:
     _create_unverified_https_context = ssl._create_unverified_context
@@ -132,6 +135,19 @@ def generate_result(positivesrev, negativesrev, module_name, provider):
     thisdict = {"text": text_report,"posrev": positivesrev, "negrev": negativesrev}
     print(thisdict["text"])
     return thisdict
+
+#wordcloud generator
+def wordcloud(strings):
+    wordcloud = WordCloud(width=800, height=400).generate(strings)
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
+    #plot to image
+    image = BytesIO()
+    plt.savefig(image, format='png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    image.seek(0)
+    return image
 
 #Getter Functions
 def get_msg(thisdict):
