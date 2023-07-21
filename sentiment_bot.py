@@ -60,8 +60,9 @@ def run_sentiment_bot():
                     final_message = get_msg(thisdict)
                     await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
                     await bot.send_message(message.chat.id, final_message)
+                    await bot.send_message(message.chat.id, f"Want to see a review on {module}? Or a Wordcloud? Select any of the choices below!", reply_markup=gen_markup_eval())
                     user_id = message.chat.id
-                    last_command[user_id] = message.text
+                    last_command[user_id] = message
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
@@ -96,7 +97,7 @@ def run_sentiment_bot():
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     final_message = get_good(thisdict)
                     await bot.send_message(message.chat.id, final_message)
-                    await bot.send_message(message.chat.id, f"Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
+                    await bot.send_message(message.chat.id, f"Require Another Review on {module}? Select the Button below!", reply_markup=gen_markup_rev())
                     user_id = message.chat.id
                     last_command[user_id] = message
                 except Exception:
@@ -133,9 +134,9 @@ def run_sentiment_bot():
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     final_message = get_neg(thisdict)
                     await bot.send_message(message.chat.id, final_message)
-                    await bot.send_message(message.chat.id, f"Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
+                    await bot.send_message(message.chat.id, f"Require Another Review on {module}? Select the Button below!", reply_markup=gen_markup_rev())
                     user_id = message.chat.id
-                    last_command[user_id] = message.text
+                    last_command[user_id] = message
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
@@ -220,7 +221,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
+            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /positivewordcloud!")
 
     #Inline for Review
     def gen_markup_rev():
@@ -230,7 +231,16 @@ def run_sentiment_bot():
         markup.add(InlineKeyboardButton("Next Negative Review!", callback_data="nextneg"))
         return markup
     
-    #Callback Functions for RandReview
+    #Inline for Eval
+    def gen_markup_eval():
+        markup = InlineKeyboardMarkup()
+        markup.row_width = 1
+        markup.add(InlineKeyboardButton("Positive Review!", callback_data="nextpos"))
+        markup.add(InlineKeyboardButton("Negative Review!", callback_data="nextneg"))
+        markup.add(InlineKeyboardButton("WordCloud!", callback_data="wordcloud"))
+        return markup    
+    
+    #Callback Functions for RandReview & Eval
     @bot.callback_query_handler(func=lambda call: True)
     async def callback_query(call):
         #Request Positive Review
@@ -287,6 +297,41 @@ def run_sentiment_bot():
                     await bot.send_message(call.message.chat.id, "Module Code does not seem to be valid. Try again!")
             else:
                 await bot.send_message(call.message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
+        #wordcloud
+        elif call.data == "wordcloud":
+            user_id = call.message.chat.id
+            last_typed_command = last_command[user_id]
+            request = last_typed_command.text.split()
+            if len(request) == 2:
+                fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
+                module = last_typed_command.text.split(" ")[1].lower()
+                if bool(re.search(fil, module)):
+                    try:
+                        if mod_exist(get_database(), module):
+                            positivesrev, negativesrev = retrieve_sentiments(module)
+                        else: 
+                            reviews = crawl(module)
+                            if len(reviews) == 0:
+                                await bot.send_message(call.message.chat.id, f"Sorry, we are unable to generate a wordcloud on {module}. Please try again later!")
+                                return
+                            else:
+                                positivesrev, negativesrev = get_sentiments(reviews, module)
+                        await bot.send_message(call.message.chat.id, "Generating wordcloud now...")
+                        thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
+                        reviews = thisdict["posrev"]
+                        #Compile Reviews
+                        text = ' '.join(reviews)
+                        #Wordcloud generation from analyser.py
+                        image = wordcloud(text)
+                        await bot.send_message(call.message.chat.id, f"Here is your positve wordcloud on {module}!")
+                        await bot.send_photo(call.message.chat.id, image)
+                    except Exception:
+                        await bot.send_message(call.message.chat.id,
+                                "There has been an error. Kindly try again later!")
+                else:
+                    await bot.send_message(call.message.chat.id, "Module Code does not seem to be valid. Try again!")
+            else:
+                await bot.send_message(call.message.chat.id, f"Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
 
     # Info Command
     @bot.message_handler(commands=['info'])
