@@ -1,11 +1,8 @@
-certifi==2022.12.7
 certifi==2023.5.7
-matplotlib==3.5.2
 matplotlib==3.7.1
 nltk==3.8.1
 praw==7.7.0
 pymongo==4.4.0
-pyTelegramBotAPI==4.12.0
 pyTelegramBotAPI==4.12.0
 python-dotenv==1.0.0
 wordcloud==1.9.2
