@@ -7,7 +7,6 @@ from nltk.corpus import stopwords
 import nltk
 import ssl
 import pickle
-import sklearn
 from create_mongodb import get_database
 from crawler import crawl
 from io import BytesIO
@@ -23,12 +22,11 @@ else:
 nltk.download('wordnet')
 nltk.download('punkt')
 
-#get_sentiments Helper Functions
-def preprocess(reviews):
+def tokenize(reviews):
     stopword = stopwords.words('english')
     tokenizer = nltk.tokenize.WhitespaceTokenizer()
     lemmatizer = nltk.stem.WordNetLemmatizer()
-    processed = []
+    tokens = []
     for review in reviews:
         # lowercase
         review = review.lower()
@@ -43,8 +41,12 @@ def preprocess(reviews):
         review = re.sub(r'\s+[a-zA-Z]\s+', ' ', review)
         review = re.sub(r'\s+', ' ', review)
         review = " ".join([lemmatizer.lemmatize(x) for x in tokenizer.tokenize(review)])
-        processed.append(review)
+        tokens.append(review)
+    return tokens
         
+#get_sentiments Helper Functions
+def preprocess(reviews):
+    processed = tokenize(reviews)
     with open('tfidf_pkl', 'rb') as file:
         vectorizer = pickle.load(file)
     vectorised_reviews = vectorizer.transform(processed)
@@ -69,28 +71,30 @@ def make_bar(y_axis, module_name):
 
 # checks if mod is in database
 def mod_exist(db, name):
-    x = db[name].find_one()
-    return x is not None
+    mod = db['modules_coll'].find_one({'name':name})
+    return mod is not None
 
 # return list of positive and negative reviews
 # if module in database
-def retrieve_sentiments(module_name):
+def retrieve_sentiments(db, name):
 
-    db = get_database()
-    coll_name = module_name
+    mod = db['modules_coll'].find_one({'name':name})
+    
     # retrieve reviews & sentiments from database
     print("fetching records from our database...")
-    my_coll = db[coll_name]
-    positivesrev = my_coll.find_one()['pos']
-    negativesrev = my_coll.find_one()['neg']
+    positivesrev = mod['pos']
+    negativesrev = mod['neg']
 
     return positivesrev, negativesrev
+
+# insert module info into database
+def insert_info(db, name, info):
+    db['modules_coll'].insert_one({'name':name, 'pos':info['pos'], 'neg':info['neg']})
 
 # if module not in database
 def get_sentiments(data, module_name):
 
     db = get_database()
-    coll_name = module_name
         
     print('sentiment calculation began..')
 
@@ -112,8 +116,7 @@ def get_sentiments(data, module_name):
         
     # insert new module reviews sentiments into database
     info = {'pos': positivesrev, 'neg':negativesrev}
-    new_coll = db[coll_name]
-    new_coll.insert_one(info)
+    insert_info(db, module_name, info)
 
     return positivesrev, negativesrev
 
@@ -136,9 +139,20 @@ def generate_result(positivesrev, negativesrev, module_name, provider):
     print(thisdict["text"])
     return thisdict
 
+#eliminate common words present in both positive & negative wordcloud
+def eliminate_shared_words(thisdict):
+    pos_tokens = " ".join(thisdict['posrev']).split()
+    neg_tokens = " ".join(thisdict['negrev']).split()
+    common_words = [word for word in pos_tokens if word in neg_tokens]
+    return common_words
+
 #wordcloud generator
-def wordcloud(strings):
-    wordcloud = WordCloud(width=800, height=400).generate(strings)
+def wordcloud(reviews, thisdict):
+    # preprocess the reviews and join into one string
+    common_words = eliminate_shared_words(thisdict)
+    words = " ".join(reviews).split()
+    string = " ".join([word for word in words if word not in common_words])
+    wordcloud = WordCloud(width=800, height=400).generate(string)
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.imshow(wordcloud, interpolation='bilinear')
     ax.axis('off')

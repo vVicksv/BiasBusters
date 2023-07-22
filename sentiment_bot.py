@@ -1,37 +1,51 @@
 import os
 from dotenv import load_dotenv
-from crawler import crawl
-from analyser import get_sentiments, retrieve_sentiments, generate_result, get_good, get_neg, get_msg
 from telebot.async_telebot import AsyncTeleBot
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telebot import types
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio
 import re
-from crawler import crawl
-from analyser import mod_exist, wordcloud
 from create_mongodb import get_database
-from wordcloud import WordCloud
-from io import BytesIO
-import matplotlib.pyplot as plt
+from crawler import crawl
+from analyser import get_sentiments, retrieve_sentiments, generate_result, get_good, get_neg, get_msg, mod_exist, wordcloud
 
+
+ # set up database collection to store all users' previous command 
+users = get_database()['users']
+
+# checks if a user is in the database
+def user_exist(db, user_id):
+    user = db['users'].find_one({'user_id':user_id})
+    return user is not None
+
+# insert user_id into database
+def insert_user(db, user_id, message):
+    mod = message.text.split()[1]
+    db['users'].insert_one({'user_id':user_id, 'last_mod':mod})
+
+# retrieve the last searched module of user
+def get_searched_mod(db, user_id):
+    user = db['users'].find_one({'user_id':user_id})
+    return user['last_mod']
+
+# update the last searched module of user
+def update_last_mod(db, user_id, message):
+    mod = message.text.split()[1]
+    db['users'].update_one({'user_id':user_id}, {'$set':{'last_mod':mod}})
 
 def run_sentiment_bot():
 
     load_dotenv()
 
-    #dictionary of commands
-    last_command = {}
-
     # Setting up of BOT
     TELE_TOKEN = os.environ.get('TELE_TOKEN')
     bot = AsyncTeleBot(TELE_TOKEN)
-
+   
     # Start Command
     @bot.message_handler(commands=['start'])
     async def start(message):
         await bot.send_message(message.chat.id, "How's it going, {name}! \U0001F60A \n\nNice to meet you! I am your very own NUSMOD-erator, here to give you the best insights to the module you're curious about! \U0001F914 \U0001F914 \n\nTo start, simply /evaluate <Module Code> and we'll get started! \U0001FAE1 \n\nWant to know how /evaluate works? /info for an introduction to our process!".format(name=message.from_user.first_name))
-
 
     # Evaluate Command
     @bot.message_handler(commands=['evaluate'])
@@ -39,15 +53,16 @@ def run_sentiment_bot():
         request = message.text.lower().split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1].lower()
+            module = request[1].lower()
+            db = get_database()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
                     
-                    if mod_exist(get_database(), module):
-                        await bot.send_message(message.chat.id, f"Please wait while we fetch the reviews from our database!")
-                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    if mod_exist(db, module):
+                        await bot.send_message(message.chat.id, "Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(db, module)
                     else: 
                         reviews = crawl(module)
                         if len(reviews) == 0:
@@ -60,15 +75,22 @@ def run_sentiment_bot():
                     final_message = get_msg(thisdict)
                     await bot.send_photo(message.chat.id, photo=open("bar.png", 'rb'))
                     await bot.send_message(message.chat.id, final_message)
+                    await bot.send_message(message.chat.id, f"Want to see a review on {module}? Or a Wordcloud? Select any of the choices below!", reply_markup=gen_markup_eval())
                     user_id = message.chat.id
-                    last_command[user_id] = message.text
+
+                    # insert/update user info into database
+                    if user_exist(db, user_id):
+                        update_last_mod(db, user_id, message)
+                    else:
+                        insert_user(db, user_id, message)
+
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /evaluate!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /evaluate!")
 
     #RandReview Positive
     @bot.message_handler(commands=['positivereview'])
@@ -76,15 +98,16 @@ def run_sentiment_bot():
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1].lower()
+            module = request[1].lower()
+            db = get_database()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
                     
-                    if mod_exist(get_database(), module):
-                        await bot.send_message(message.chat.id, f"Please wait while we fetch the reviews from our database!")
-                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    if mod_exist(db, module):
+                        await bot.send_message(message.chat.id, "Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(db, module)
                     else: 
                         reviews = crawl(module)
                         if len(reviews) == 0:
@@ -96,16 +119,22 @@ def run_sentiment_bot():
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     final_message = get_good(thisdict)
                     await bot.send_message(message.chat.id, final_message)
-                    await bot.send_message(message.chat.id, f"Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
+                    await bot.send_message(message.chat.id, "Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
                     user_id = message.chat.id
-                    last_command[user_id] = message
+                    
+                    # insert/update user info into database
+                    if user_exist(db, user_id):
+                        update_last_mod(db, user_id, message)
+                    else:
+                        insert_user(db, user_id, message)
+
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /PositiveReview!")
 
     #RandReview Negative
     @bot.message_handler(commands=['negativereview'])
@@ -113,15 +142,16 @@ def run_sentiment_bot():
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1].lower()
+            module = request[1].lower()
+            db = get_database()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
                     
-                    if mod_exist(get_database(), module):
-                        await bot.send_message(message.chat.id, f"Hold on while we fetch the reviews from our database!")
-                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    if mod_exist(db, module):
+                        await bot.send_message(message.chat.id, "Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(db, module)
                     else: 
                         reviews = crawl(module)
                         if len(reviews) == 0:
@@ -133,16 +163,22 @@ def run_sentiment_bot():
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     final_message = get_neg(thisdict)
                     await bot.send_message(message.chat.id, final_message)
-                    await bot.send_message(message.chat.id, f"Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
+                    await bot.send_message(message.chat.id, "Require Another Review? Select the Button below!", reply_markup=gen_markup_rev())
                     user_id = message.chat.id
-                    last_command[user_id] = message.text
+                    
+                    # insert/update user info into database
+                    if user_exist(db, user_id):
+                        update_last_mod(db, user_id, message)
+                    else:
+                        insert_user(db, user_id, message)
+
                 except Exception:
                     await bot.send_message(message.chat.id,
                                 "There has been an error. Kindly try again later!")
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /NegativeReview!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /NegativeReview!")
     
     #NegativeWordCloud
     @bot.message_handler(commands=['negativewordcloud'])
@@ -150,15 +186,16 @@ def run_sentiment_bot():
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1].lower()
+            module = request[1].lower()
+            db = get_database()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
                     
-                    if mod_exist(get_database(), module):
-                        await bot.send_message(message.chat.id, f"Hold on while we fetch the reviews from our database!")
-                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    if mod_exist(db, module):
+                        await bot.send_message(message.chat.id, "Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(db, module)
                     else: 
                         reviews = crawl(module)
                         if len(reviews) == 0:
@@ -169,10 +206,7 @@ def run_sentiment_bot():
                     await bot.send_message(message.chat.id, "Generating wordcloud now...")
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     reviews = thisdict["negrev"]
-                    #Compile Reviews
-                    text = ' '.join(reviews)
-                    #Wordcloud generation from analyser.py
-                    image = wordcloud(text)
+                    image = wordcloud(reviews, thisdict)
                     await bot.send_message(message.chat.id, f"Here is your negative wordcloud on {module}!")
                     await bot.send_photo(message.chat.id, image)
                 except Exception:
@@ -181,7 +215,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
 
     #Postivewordcloud
     @bot.message_handler(commands=['positivewordcloud'])
@@ -189,15 +223,16 @@ def run_sentiment_bot():
         request = message.text.split()
         if len(request) == 2:
             fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-            module = message.text.split(" ")[1].lower()
+            module = request[1].lower()
+            db = get_database()
             if bool(re.search(fil, module)):
                 try:
                     await bot.send_message(
                         message.chat.id, f"Please wait, we are trying to find reviews on {module}...")
                     
-                    if mod_exist(get_database(), module):
-                        await bot.send_message(message.chat.id, f"Hold on while we fetch the reviews from our database!")
-                        positivesrev, negativesrev = retrieve_sentiments(module)
+                    if mod_exist(db, module):
+                        await bot.send_message(message.chat.id, "Hold on while we fetch the reviews from our database!")
+                        positivesrev, negativesrev = retrieve_sentiments(db, module)
                     else: 
                         reviews = crawl(module)
                         if len(reviews) == 0:
@@ -208,10 +243,7 @@ def run_sentiment_bot():
                     await bot.send_message(message.chat.id, "Generating wordcloud now...")
                     thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
                     reviews = thisdict["posrev"]
-                    #Compile Reviews
-                    text = ' '.join(reviews)
-                    #Wordcloud generation from analyser.py
-                    image = wordcloud(text)
+                    image = wordcloud(reviews, thisdict)
                     await bot.send_message(message.chat.id, f"Here is your positve wordcloud on {module}!")
                     await bot.send_photo(message.chat.id, image)
                 except Exception:
@@ -220,7 +252,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, f"Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
 
     #Inline for Review
     def gen_markup_rev():
@@ -230,63 +262,44 @@ def run_sentiment_bot():
         markup.add(InlineKeyboardButton("Next Negative Review!", callback_data="nextneg"))
         return markup
     
+    #Inline for Eval
+    def gen_markup_eval():
+        markup = InlineKeyboardMarkup()
+        markup.row_width = 1
+        markup.add(InlineKeyboardButton("Positive Review!", callback_data="nextpos"))
+        markup.add(InlineKeyboardButton("Negative Review!", callback_data="nextneg"))
+        markup.add(InlineKeyboardButton("Positive WordCloud!", callback_data="pos_wordcloud"))
+        markup.add(InlineKeyboardButton("Negative WordCloud!", callback_data="neg_wordcloud"))
+        return markup    
+    
     #Callback Functions for RandReview
     @bot.callback_query_handler(func=lambda call: True)
     async def callback_query(call):
-        #Request Positive Review
-        if call.data == "nextpos":
+        try:
+            db = get_database()
             user_id = call.message.chat.id
-            last_typed_command = last_command[user_id]
-            request = last_typed_command.text.split()
-            if len(request) == 2:
-                fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-                module = last_typed_command.text.split(" ")[1].lower()
-                if bool(re.search(fil, module)):
-                    try:
-                        if mod_exist(get_database(), module):
-                            positivesrev, negativesrev = retrieve_sentiments(module)
-                        else: 
-                            reviews = crawl(module)
-                            positivesrev, negativesrev = get_sentiments(reviews, module)
-                        await bot.send_message(call.message.chat.id, "Generating Positive review now...")
-                        thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
-                        final_message = get_good(thisdict)
-                        await bot.send_message(call.message.chat.id, final_message)
-                        await bot.send_message(call.message.chat.id, f"Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
-                    except Exception:
-                        await bot.send_message(call.message.chat.id,
-                                    "There has been an error. Kindly try again later!")
-                else:
-                    await bot.send_message(call.message.chat.id, "Module Code does not seem to be valid. Try again!")
-            else:
-                await bot.send_message(call.message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
-        #Request Negative Review
-        elif call.data == "nextneg":
-            user_id = call.message.chat.id
-            last_typed_command = last_command[user_id]
-            request = last_typed_command.text.split()
-            if len(request) == 2:
-                fil = "^[A-Za-z]{2,4}[0-9]{4,4}[A-Za-z]{0,1}$"
-                module = last_typed_command.text.split(" ")[1].lower()
-                if bool(re.search(fil, module)):
-                    try:
-                        if mod_exist(get_database(), module):
-                            positivesrev, negativesrev = retrieve_sentiments(module)
-                        else: 
-                            reviews = crawl(module)
-                            positivesrev, negativesrev = get_sentiments(reviews, module)
-                        await bot.send_message(call.message.chat.id, "Generating Negative review now...")
-                        thisdict = generate_result(positivesrev, negativesrev, module, "reddit")
-                        final_message = get_neg(thisdict)
-                        await bot.send_message(call.message.chat.id, final_message)
-                        await bot.send_message(call.message.chat.id, f"Want more reviews? Just select any of the choices below!", reply_markup=gen_markup_rev())
-                    except Exception:
-                        await bot.send_message(call.message.chat.id,
-                                    "There has been an error. Kindly try again later!")
-                else:
-                    await bot.send_message(call.message.chat.id, "Module Code does not seem to be valid. Try again!")
-            else:
-                await bot.send_message(call.message.chat.id, f"Invalid Input. Remember to add in a Module Code after /PositiveReview!")
+            # retrieve last searched module
+            module = get_searched_mod(db, user_id)
+            positivesrev, negativesrev = retrieve_sentiments(db, module)
+            thisdict = {'posrev':positivesrev, 'negrev':negativesrev}
+            if call.data == "nextpos":
+                review = get_good(thisdict)
+                await bot.send_message(call.message.chat.id, review)
+                await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
+            elif call.data == "nextneg":
+                review = get_neg(thisdict)
+                await bot.send_message(call.message.chat.id, review)
+                await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
+            elif call.data == "pos_wordcloud":
+                image = wordcloud(positivesrev, thisdict)
+                await bot.send_message(call.message.chat.id, f"Here is your positive wordcloud on {module}!")
+                await bot.send_photo(call.message.chat.id, image)
+            elif call.data == "neg_wordcloud":
+                image = wordcloud(negativesrev, thisdict)
+                await bot.send_message(call.message.chat.id, f"Here is your negative wordcloud on {module}!")
+                await bot.send_photo(call.message.chat.id, image)
+        except Exception:
+            await bot.send_message(call.message.chat.id, "There has been an error. Kindly try again later!")
 
     # Info Command
     @bot.message_handler(commands=['info'])
@@ -315,15 +328,6 @@ def run_sentiment_bot():
     async def message_handler(message):
         await bot.send_message(message.chat.id, "Require troubleshooting? Select one of the issues you're facing below!", reply_markup=gen_markup())
 
-    @bot.message_handler(commands=['lastcommand'])
-    async def send_last_command(message):
-        user_id = message.chat.id
-        if user_id in last_command:
-            last_typed_command = last_command[user_id].text
-            await bot.send_message(user_id, f"Your last typed command was: {last_typed_command}")
-        else:
-            await bot.send_message(user_id, "No command history found.")
-
     #Invalid Command Handling
     @bot.message_handler(func=lambda message: True)
     async def echo_all(message):
@@ -332,3 +336,4 @@ def run_sentiment_bot():
     asyncio.run(bot.polling())
 
 # source orbitalgit_env/bin/activate
+

@@ -1,5 +1,3 @@
-from crawler import crawl
-from analyser import get_sentiments
 from sentiment_bot import run_sentiment_bot
 
 def run():
