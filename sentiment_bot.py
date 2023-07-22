@@ -21,7 +21,7 @@ def user_exist(db, user_id):
 
 # insert user_id into database
 def insert_user(db, user_id, message):
-    mod = message.text.split()[1]
+    mod = message.text.split()[1].lower()
     db['users'].insert_one({'user_id':user_id, 'last_mod':mod})
 
 # retrieve the last searched module of user
@@ -31,7 +31,7 @@ def get_searched_mod(db, user_id):
 
 # update the last searched module of user
 def update_last_mod(db, user_id, message):
-    mod = message.text.split()[1]
+    mod = message.text.split()[1].lower()
     db['users'].update_one({'user_id':user_id}, {'$set':{'last_mod':mod}})
 
 def run_sentiment_bot():
