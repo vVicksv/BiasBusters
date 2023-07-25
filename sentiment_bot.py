@@ -134,7 +134,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /PositiveReview!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /positivereview!")
 
     #RandReview Negative
     @bot.message_handler(commands=['negativereview'])
@@ -178,7 +178,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /NegativeReview!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /negativereview!")
     
     #NegativeWordCloud
     @bot.message_handler(commands=['negativewordcloud'])
@@ -252,7 +252,7 @@ def run_sentiment_bot():
             else:
                 await bot.send_message(message.chat.id, "Module Code does not seem to be valid. Try again!")
         else:
-            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /negativewordcloud!")
+            await bot.send_message(message.chat.id, "Invalid Input. Remember to add in a Module Code after /positivewordcloud!")
 
     #Inline for Review
     def gen_markup_rev():
