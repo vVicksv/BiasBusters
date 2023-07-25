@@ -275,31 +275,40 @@ def run_sentiment_bot():
     #Callback Functions for RandReview
     @bot.callback_query_handler(func=lambda call: True)
     async def callback_query(call):
-        try:
-            db = get_database()
-            user_id = call.message.chat.id
-            # retrieve last searched module
-            module = get_searched_mod(db, user_id)
-            positivesrev, negativesrev = retrieve_sentiments(db, module)
-            thisdict = {'posrev':positivesrev, 'negrev':negativesrev}
-            if call.data == "nextpos":
-                review = get_good(thisdict)
-                await bot.send_message(call.message.chat.id, review)
-                await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
-            elif call.data == "nextneg":
-                review = get_neg(thisdict)
-                await bot.send_message(call.message.chat.id, review)
-                await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
-            elif call.data == "pos_wordcloud":
-                image = wordcloud(positivesrev, thisdict)
-                await bot.send_message(call.message.chat.id, f"Here is your positive wordcloud on {module}!")
-                await bot.send_photo(call.message.chat.id, image)
-            elif call.data == "neg_wordcloud":
-                image = wordcloud(negativesrev, thisdict)
-                await bot.send_message(call.message.chat.id, f"Here is your negative wordcloud on {module}!")
-                await bot.send_photo(call.message.chat.id, image)
-        except Exception:
-            await bot.send_message(call.message.chat.id, "There has been an error. Kindly try again later!")
+        if call.data == "graph":
+            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="In most scenarios when you're unable to have a bar chart for your output, it is highly likely that an error has happend that isn't within your control. \n\nContact @Viacks or @boonlong if it happens after trying again!")
+        elif call.data == "review":
+            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="Got a message saying that there are no reviews for your requested module? It is likely that there is no mention of your requested module in the NUS subreddit. As such, there would be nothing to analyse. \n\nWe understand that may be an issue for less popular modules and are looking into adding additional module review sites so stay tuned for that! For now, you can try another module and see if it works!")
+        elif call.data == "evaluate":
+            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="When nothing happens after /evaluate, there may be a couple possibilites. \n\n1. Someone else may be using the bot for /evaluate. Try waiting for 3-5 minutes without repeating the command and see if it works. We understand that the bot should be running concurrently for each unique user and are looking into running this bot asynchronously. Please give us awhile! \n\n2. The bot may be down for further improvements. You can contact @Viacks or @boonlong for further enquiries or urgent testing!")
+        elif call.data == "others":
+            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="Contact @Viacks or @boonlong for any other issues you're facing!")
+        else:
+            try:
+                db = get_database()
+                user_id = call.message.chat.id
+                # retrieve last searched module
+                module = get_searched_mod(db, user_id)
+                positivesrev, negativesrev = retrieve_sentiments(db, module)
+                thisdict = {'posrev':positivesrev, 'negrev':negativesrev}
+                if call.data == "nextpos":
+                    review = get_good(thisdict)
+                    await bot.send_message(call.message.chat.id, review)
+                    await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
+                elif call.data == "nextneg":
+                    review = get_neg(thisdict)
+                    await bot.send_message(call.message.chat.id, review)
+                    await bot.send_message(call.message.chat.id, "Want more reviews? Just select the button below!", reply_markup=gen_markup_rev())
+                elif call.data == "pos_wordcloud":
+                    image = wordcloud(positivesrev, thisdict)
+                    await bot.send_message(call.message.chat.id, f"Here is your positive wordcloud on {module}!")
+                    await bot.send_photo(call.message.chat.id, image)
+                elif call.data == "neg_wordcloud":
+                    image = wordcloud(negativesrev, thisdict)
+                    await bot.send_message(call.message.chat.id, f"Here is your negative wordcloud on {module}!")
+                    await bot.send_photo(call.message.chat.id, image)
+            except Exception:
+                await bot.send_message(call.message.chat.id, "There has been an error. Kindly try again later!")
 
     # Info Command
     @bot.message_handler(commands=['info'])
@@ -312,17 +321,6 @@ def run_sentiment_bot():
         markup.row_width = 1
         markup.add(InlineKeyboardButton("No Graph Output", callback_data="graph"), InlineKeyboardButton("No Reviews", callback_data="review"), InlineKeyboardButton("Nothing Happens after /evaluate", callback_data="evaluate"), InlineKeyboardButton("Others", callback_data="others"))
         return markup
-
-    @bot.callback_query_handler(func=lambda call: True)
-    async def callback_query(call):
-        if call.data == "graph":
-            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="In most scenarios when you're unable to have a bar chart for your output, it is highly likely that an error has happend that isn't within your control. \n\nContact @Viacks or @boonlong if it happens after trying again!")
-        elif call.data == "review":
-            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="Got a message saying that there are no reviews for your requested module? It is likely that there is no mention of your requested module in the NUS subreddit. As such, there would be nothing to analyse. \n\nWe understand that may be an issue for less popular modules and are looking into adding additional module review sites so stay tuned for that! For now, you can try another module and see if it works!")
-        elif call.data == "evaluate":
-            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="When nothing happens after /evaluate, there may be a couple possibilites. \n\n1. Someone else may be using the bot for /evaluate. Try waiting for 3-5 minutes without repeating the command and see if it works. We understand that the bot should be running concurrently for each unique user and are looking into running this bot asynchronously. Please give us awhile! \n\n2. The bot may be down for further improvements. You can contact @Viacks or @boonlong for further enquiries or urgent testing!")
-        elif call.data == "others":
-            await bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text="Contact @Viacks or @boonlong for any other issues you're facing!")
 
     @bot.message_handler(commands=['troubleshoot'])
     async def message_handler(message):
